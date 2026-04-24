@@ -93,7 +93,7 @@ const hud = new HUD();
 const controls = new TouchControls();
 
 // Initial population
-asteroids.spawnInitial(shipRig.root.getPosition(), 14);
+asteroids.spawnInitial(shipRig.root.getPosition(), 14, shipRig.root.forward);
 
 // Snap camera to starting position so first frame isn't inside the ship
 function snapCameraToShip(): void {
@@ -120,7 +120,7 @@ hud.onRestart(() => {
   shipRig.root.setPosition(0, 0, 0);
   shipRig.root.setEulerAngles(0, 0, 0);
   shipRig.velocity.set(0, 0, 0);
-  asteroids.spawnInitial(shipRig.root.getPosition(), 14);
+  asteroids.spawnInitial(shipRig.root.getPosition(), 14, shipRig.root.forward);
   snapCameraToShip();
   hud.hideDeath();
   hud.setScore(0);
@@ -153,7 +153,7 @@ app.on("update", (dt: number) => {
   }
 
   projectiles.update(dt);
-  asteroids.update(dt, shipRig.root.getPosition());
+  asteroids.update(dt, shipRig.root.getPosition(), shipRig.root.forward);
   particles.update(dt);
 
   // Collisions: projectiles vs asteroids

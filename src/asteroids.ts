@@ -18,7 +18,8 @@ export interface AsteroidHit {
 
 const MAX_ASTEROIDS = 42;
 const SPAWN_RADIUS = 72;
-const DESPAWN_RADIUS = 110;
+const DESPAWN_RADIUS = 90;
+const BEHIND_DESPAWN_DIST = 30; // recycle asteroids that are behind the ship faster
 const TIER_CONFIG = [
   { radius: 0.9, speedMin: 3, speedMax: 7, score: 50, color: [0.55, 0.5, 0.48] }, // small
   { radius: 1.7, speedMin: 2, speedMax: 5, score: 100, color: [0.62, 0.55, 0.5] }, // medium
@@ -140,13 +141,13 @@ export class AsteroidSystem {
     return e;
   }
 
-  spawnInitial(centerPos: pc.Vec3, count: number): void {
+  spawnInitial(centerPos: pc.Vec3, count: number, forwardDir?: pc.Vec3): void {
     for (let i = 0; i < count; i++) {
-      this.spawnAround(centerPos);
+      this.spawnAround(centerPos, forwardDir);
     }
   }
 
-  private spawnAround(centerPos: pc.Vec3): void {
+  private spawnAround(centerPos: pc.Vec3, forwardDir?: pc.Vec3): void {
     if (this.active.length >= MAX_ASTEROIDS) return;
 
     const tier = (Math.random() < 0.2 ? 2 : Math.random() < 0.5 ? 0 : 1) as 0 | 1 | 2;
@@ -155,13 +156,60 @@ export class AsteroidSystem {
 
     const cfg = TIER_CONFIG[tier];
 
-    // Spawn at random direction around center, at SPAWN_RADIUS
+    // Bias spawns toward the forward hemisphere if a direction is provided.
+    // This keeps gameplay dense in front of the ship.
+    let dirX: number;
+    let dirY: number;
+    let dirZ: number;
+
     const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    const r = SPAWN_RADIUS * (0.7 + Math.random() * 0.5);
-    const sx = centerPos.x + r * Math.sin(phi) * Math.cos(theta);
-    const sy = centerPos.y + r * Math.sin(phi) * Math.sin(theta) * 0.4; // flatten vertical
-    const sz = centerPos.z + r * Math.cos(phi);
+    const u = Math.random();
+    // When forwardDir given, pick from a narrow forward cone (cos between 0.94 and 1.0)
+    // so asteroids land directly on the ship's flight path.
+    const cosPhi = forwardDir ? 0.94 + u * 0.06 : 2 * u - 1;
+    const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi));
+
+    if (forwardDir) {
+      // Build orthonormal basis aligned to forwardDir
+      const fx = forwardDir.x;
+      const fy = forwardDir.y;
+      const fz = forwardDir.z;
+      // Pick an up vector not parallel to forward
+      const upX = Math.abs(fy) < 0.9 ? 0 : 1;
+      const upY = Math.abs(fy) < 0.9 ? 1 : 0;
+      const upZ = 0;
+      // right = forward × up
+      const rxRaw = fy * upZ - fz * upY;
+      const ryRaw = fz * upX - fx * upZ;
+      const rzRaw = fx * upY - fy * upX;
+      const rLen = Math.hypot(rxRaw, ryRaw, rzRaw) || 1;
+      const rx = rxRaw / rLen;
+      const ry = ryRaw / rLen;
+      const rz = rzRaw / rLen;
+      // trueUp = right × forward
+      const tux = ry * fz - rz * fy;
+      const tuy = rz * fx - rx * fz;
+      const tuz = rx * fy - ry * fx;
+
+      const vx = sinPhi * Math.cos(theta);
+      const vy = sinPhi * Math.sin(theta);
+      // World direction = vx*right + vy*trueUp + cosPhi*forward
+      dirX = vx * rx + vy * tux + cosPhi * fx;
+      dirY = vx * ry + vy * tuy + cosPhi * fy;
+      dirZ = vx * rz + vy * tuz + cosPhi * fz;
+    } else {
+      dirX = sinPhi * Math.cos(theta);
+      dirY = sinPhi * Math.sin(theta) * 0.4; // flatten vertical
+      dirZ = cosPhi;
+    }
+
+    // For forward-biased spawns, spawn at medium distance so player has reaction time
+    const rangeMin = forwardDir ? 0.55 : 0.7;
+    const rangeMax = forwardDir ? 0.65 : 0.5;
+    const r = SPAWN_RADIUS * (rangeMin + Math.random() * rangeMax);
+    const sx = centerPos.x + r * dirX;
+    const sy = centerPos.y + r * dirY;
+    const sz = centerPos.z + r * dirZ;
 
     entity.setPosition(sx, sy, sz);
     entity.setEulerAngles(
@@ -195,11 +243,15 @@ export class AsteroidSystem {
     });
   }
 
-  update(dt: number, playerPos: pc.Vec3): void {
+  update(dt: number, playerPos: pc.Vec3, forwardDir?: pc.Vec3): void {
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0 && this.active.length < MAX_ASTEROIDS) {
-      this.spawnAround(playerPos);
-      this.spawnTimer = 0.35 + Math.random() * 0.5;
+      // Spawn 1-2 per tick, forward-biased
+      this.spawnAround(playerPos, forwardDir);
+      if (this.active.length < MAX_ASTEROIDS && Math.random() < 0.6) {
+        this.spawnAround(playerPos, forwardDir);
+      }
+      this.spawnTimer = 0.22 + Math.random() * 0.25;
     }
 
     for (let i = this.active.length - 1; i >= 0; i--) {
@@ -219,6 +271,21 @@ export class AsteroidSystem {
       const dist2 = dx * dx + dy * dy + dz * dz;
       if (dist2 > DESPAWN_RADIUS * DESPAWN_RADIUS) {
         this.recycle(i);
+        continue;
+      }
+      // Despawn asteroids that are behind the ship or too far sideways,
+      // keeping the forward cone densely populated.
+      if (forwardDir) {
+        const dot = dx * forwardDir.x + dy * forwardDir.y + dz * forwardDir.z;
+        if (dot < -BEHIND_DESPAWN_DIST) {
+          this.recycle(i);
+          continue;
+        }
+        // Perpendicular distance from ship's forward axis
+        const perp2 = dist2 - dot * dot;
+        if (perp2 > 40 * 40) {
+          this.recycle(i);
+        }
       }
     }
   }
@@ -235,7 +302,9 @@ export class AsteroidSystem {
         const dy = pp.y - ap.y;
         const dz = pp.z - ap.z;
         const d2 = dx * dx + dy * dy + dz * dz;
-        const r = a.radius + 0.25;
+        // Generous collision radius — projectiles move fast so we can tunnel;
+        // bump effective hit radius to reduce frustration.
+        const r = a.radius + 0.8;
         if (d2 < r * r) {
           hits.push({
             position: ap.clone(),
