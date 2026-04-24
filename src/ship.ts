@@ -60,11 +60,11 @@ export function createShip(_app: pc.Application): ShipRig {
   nose.setLocalEulerAngles(-90, 0, 0); // cone default points +Y; -90 rotates to -Z
   body.addChild(nose);
 
-  // Canopy (accent) — slightly forward, slightly up
+  // Canopy (accent) — small & sharp, sits atop hull, not engulfing it
   const canopy = new pc.Entity("canopy");
   canopy.addComponent("render", { type: "sphere", material: accentMat });
-  canopy.setLocalScale(0.55, 0.35, 0.7);
-  canopy.setLocalPosition(0, 0.28, -0.3);
+  canopy.setLocalScale(0.38, 0.22, 0.55);
+  canopy.setLocalPosition(0, 0.38, -0.3);
   body.addChild(canopy);
 
   // Wings — two flat boxes, sit slightly behind canopy
@@ -95,11 +95,11 @@ export function createShip(_app: pc.Application): ShipRig {
   tipR.setLocalPosition(2.0, -0.22, 0.55);
   body.addChild(tipR);
 
-  // Engine exhaust — bright cylinder at rear (+Z)
+  // Engine exhaust — smaller bright cylinder at rear (+Z)
   const thrustMat = new pc.StandardMaterial();
   thrustMat.diffuse = new pc.Color(0, 0, 0);
-  thrustMat.emissive = new pc.Color(0.3, 0.85, 1.4);
-  thrustMat.emissiveIntensity = 2.5;
+  thrustMat.emissive = new pc.Color(0.35, 0.9, 1.5);
+  thrustMat.emissiveIntensity = 2.2;
   thrustMat.opacity = 0.85;
   thrustMat.blendType = pc.BLEND_ADDITIVE;
   thrustMat.depthWrite = false;
@@ -107,20 +107,20 @@ export function createShip(_app: pc.Application): ShipRig {
 
   const thrust = new pc.Entity("thrust");
   thrust.addComponent("render", { type: "cylinder", material: thrustMat });
-  thrust.setLocalScale(0.4, 0.9, 0.4);
+  thrust.setLocalScale(0.25, 0.7, 0.25);
   thrust.setLocalPosition(0, 0, 1.5);
   thrust.setLocalEulerAngles(90, 0, 0);
   body.addChild(thrust);
 
-  // Engine point light — behind ship
+  // Engine point light — small range so it doesn't wash out the hull
   const engineLight = new pc.Entity("engine-light");
   engineLight.addComponent("light", {
     type: "point",
     color: new pc.Color(0.3, 0.8, 1.2),
-    intensity: 2.2,
-    range: 8,
+    intensity: 1.6,
+    range: 3,
   });
-  engineLight.setLocalPosition(0, 0, 2.2);
+  engineLight.setLocalPosition(0, 0, 2.4);
   body.addChild(engineLight);
 
   return {

@@ -24,6 +24,7 @@ const app = new pc.Application(canvas, {
 app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
 app.setCanvasResolution(pc.RESOLUTION_AUTO);
 app.scene.exposure = 1.15;
+app.scene.ambientLight = new pc.Color(0.12, 0.13, 0.2);
 
 window.addEventListener("resize", () => {
   app.resizeCanvas();
@@ -78,9 +79,9 @@ const shipRig: ShipRig = createShip(app);
 app.root.addChild(shipRig.root);
 
 // Camera follows ship (chase cam). Ship forward = -Z, so camera sits at +Z behind,
-// offset up. Look target is ahead of ship at -Z.
-const CAMERA_OFFSET_LOCAL = new pc.Vec3(0, 1.2, 4.5);
-const CAMERA_LOOK_OFFSET = new pc.Vec3(0, 0.6, -14);
+// offset up + slightly to the side so the hull silhouette is readable.
+const CAMERA_OFFSET_LOCAL = new pc.Vec3(0, 2.8, 9.0);
+const CAMERA_LOOK_OFFSET = new pc.Vec3(0, -0.2, -18);
 
 // Systems
 const particles = new ParticleSystem(app);
@@ -93,6 +94,22 @@ const controls = new TouchControls();
 // Initial population
 asteroids.spawnInitial(shipRig.root.getPosition(), 14);
 
+// Snap camera to starting position so first frame isn't inside the ship
+function snapCameraToShip(): void {
+  const shipPos = shipRig.root.getPosition();
+  camera.setPosition(
+    shipPos.x + CAMERA_OFFSET_LOCAL.x,
+    shipPos.y + CAMERA_OFFSET_LOCAL.y,
+    shipPos.z + CAMERA_OFFSET_LOCAL.z
+  );
+  camera.lookAt(
+    shipPos.x + CAMERA_LOOK_OFFSET.x,
+    shipPos.y + CAMERA_LOOK_OFFSET.y,
+    shipPos.z + CAMERA_LOOK_OFFSET.z
+  );
+}
+snapCameraToShip();
+
 // Restart
 hud.onRestart(() => {
   state.reset();
@@ -103,6 +120,7 @@ hud.onRestart(() => {
   shipRig.root.setEulerAngles(0, 0, 0);
   shipRig.velocity.set(0, 0, 0);
   asteroids.spawnInitial(shipRig.root.getPosition(), 14);
+  snapCameraToShip();
   hud.hideDeath();
   hud.setScore(0);
   hud.setHealth(state.health);
