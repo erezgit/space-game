@@ -142,12 +142,18 @@ export class AsteroidSystem {
   }
 
   spawnInitial(centerPos: pc.Vec3, count: number, forwardDir?: pc.Vec3): void {
+    // On first spawn keep asteroids at least 80 units away from the player so
+    // nothing is blocking the view on frame 1.
     for (let i = 0; i < count; i++) {
-      this.spawnAround(centerPos, forwardDir);
+      this.spawnAround(centerPos, forwardDir, 80);
     }
   }
 
-  private spawnAround(centerPos: pc.Vec3, forwardDir?: pc.Vec3): void {
+  private spawnAround(
+    centerPos: pc.Vec3,
+    forwardDir?: pc.Vec3,
+    minDist = 0
+  ): void {
     if (this.active.length >= MAX_ASTEROIDS) return;
 
     const tier = (Math.random() < 0.2 ? 2 : Math.random() < 0.5 ? 0 : 1) as 0 | 1 | 2;
@@ -206,7 +212,8 @@ export class AsteroidSystem {
     // For forward-biased spawns, spawn at medium distance so player has reaction time
     const rangeMin = forwardDir ? 0.55 : 0.7;
     const rangeMax = forwardDir ? 0.65 : 0.5;
-    const r = SPAWN_RADIUS * (rangeMin + Math.random() * rangeMax);
+    const rBase = SPAWN_RADIUS * (rangeMin + Math.random() * rangeMax);
+    const r = Math.max(rBase, minDist);
     const sx = centerPos.x + r * dirX;
     const sy = centerPos.y + r * dirY;
     const sz = centerPos.z + r * dirZ;
@@ -246,10 +253,11 @@ export class AsteroidSystem {
   update(dt: number, playerPos: pc.Vec3, forwardDir?: pc.Vec3): void {
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0 && this.active.length < MAX_ASTEROIDS) {
-      // Spawn 1-2 per tick, forward-biased
-      this.spawnAround(playerPos, forwardDir);
+      // Spawn 1-2 per tick, forward-biased, never closer than 55 units so
+      // the player always has reaction time.
+      this.spawnAround(playerPos, forwardDir, 55);
       if (this.active.length < MAX_ASTEROIDS && Math.random() < 0.6) {
-        this.spawnAround(playerPos, forwardDir);
+        this.spawnAround(playerPos, forwardDir, 55);
       }
       this.spawnTimer = 0.22 + Math.random() * 0.25;
     }

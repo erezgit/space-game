@@ -7,6 +7,7 @@ import { AsteroidSystem } from "./asteroids";
 import { ParticleSystem } from "./particles";
 import { GameState } from "./state";
 import { HUD } from "./hud";
+import { buildWorld } from "./world";
 
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
 if (!canvas) throw new Error("Canvas not found");
@@ -74,15 +75,36 @@ app.root.addChild(fillLight);
 // Procedural starfield skybox
 createStarfieldSkybox(app);
 
+// HDR bloom via CameraFrame — gives nebulae + engines that cinematic glow
+try {
+  const cameraComp = camera.camera;
+  if (cameraComp) {
+    const frame = new pc.CameraFrame(app, cameraComp);
+    frame.bloom.intensity = 0.045;
+    frame.bloom.blurLevel = 14;
+    frame.vignette.inner = 0.7;
+    frame.vignette.outer = 1.6;
+    frame.vignette.intensity = 0.35;
+    frame.update();
+  }
+} catch (err) {
+  // Bloom is a nice-to-have; if the runtime doesn't support it (older WebGL
+  // paths) the game should still render cleanly without post-processing.
+  console.warn("Bloom post-processing unavailable:", err);
+}
+
 // Ship (player rig)
 const shipRig: ShipRig = createShip(app);
 app.root.addChild(shipRig.root);
 
-// Camera follows ship (chase cam). Ship forward = -Z, so camera sits at +Z behind,
-// above so the hull/wings silhouette reads well. Look point is low + forward so
-// the ship appears tilted from this vantage.
-const CAMERA_OFFSET_LOCAL = new pc.Vec3(0, 3.6, 8.5);
-const CAMERA_LOOK_OFFSET = new pc.Vec3(0, -2.5, -18);
+// Distant cosmic scenery — nebulae, galaxies, civilization set pieces.
+// Parented in a parallax container that follows the ship.
+buildWorld({ app, root: app.root, follow: shipRig.root });
+
+// Camera follows ship (chase cam). Ship forward = -Z; camera sits at +Z behind,
+// above, looking slightly down at the ship for a clear silhouette.
+const CAMERA_OFFSET_LOCAL = new pc.Vec3(0, 2.6, 7.5);
+const CAMERA_LOOK_OFFSET = new pc.Vec3(0, 0.2, -14);
 
 // Systems
 const particles = new ParticleSystem(app);
@@ -120,6 +142,8 @@ hud.onRestart(() => {
   shipRig.root.setPosition(0, 0, 0);
   shipRig.root.setEulerAngles(0, 0, 0);
   shipRig.velocity.set(0, 0, 0);
+  shipRig.pitchDeg = 0;
+  shipRig.yawDeg = 0;
   asteroids.spawnInitial(shipRig.root.getPosition(), 14, shipRig.root.forward);
   snapCameraToShip();
   hud.hideDeath();
@@ -204,48 +228,58 @@ app.on("update", (dt: number) => {
   hud.tick(dt);
 });
 
+/**
+ * ARCADE FLIGHT MODE.
+ *
+ * The ship never rolls/banks — roll is permanently zero.
+ * Joystick right/left = yaw around WORLD-Y (horizontal turn).
+ * Joystick down/up   = pitch (nose down / nose up), clamped to ±60° so the
+ *                      player can never loop or flip upside-down.
+ * Forward velocity is always along the ship's current forward vector at a
+ * constant auto-speed.
+ *
+ * Because we accumulate Euler angles (yaw, pitch) directly and never roll,
+ * left/right always maps to screen-left / screen-right regardless of pitch.
+ */
 function updateShip(rig: ShipRig, input: ControlInput, dt: number): void {
-  // Auto-forward thrust with gentle forward acceleration
-  const FORWARD_SPEED = 18;
-  const ACCEL = 10;
+  const FORWARD_SPEED = 22;
+  const YAW_RATE_DEG = 75;   // deg/sec at full stick
+  const PITCH_RATE_DEG = 55; // deg/sec at full stick
+  const PITCH_LIMIT_DEG = 60;
 
-  // Target angular velocity from joystick
-  // input.x: -1..1 (yaw), input.y: -1..1 (pitch, -y = nose up)
-  const PITCH_RATE = 1.6; // rad/s
-  const YAW_RATE = 1.5;
-  const ROLL_RATE = 2.0; // bank into turns
+  // input.x  +1 = joystick right  => ship turns to screen-right.
+  // input.y  +1 = joystick down   => ship pitches nose DOWN.
+  //
+  // In PlayCanvas, setEulerAngles(pitch, yaw, 0) with +yaw rotates the
+  // forward vector toward -X (screen-left from the default -Z forward),
+  // so we negate the yaw delta to make right-stick turn right.
+  const targetYawDelta = -input.x * YAW_RATE_DEG * dt;
+  const targetPitchDelta = -input.y * PITCH_RATE_DEG * dt;
 
-  const targetPitch = -input.y * PITCH_RATE;
-  const targetYaw = input.x * YAW_RATE;
-  const targetRoll = -input.x * ROLL_RATE;
-
-  // Smooth lerp angular inputs
-  rig.pitchRate = pc.math.lerp(rig.pitchRate, targetPitch, Math.min(1, dt * 6));
-  rig.yawRate = pc.math.lerp(rig.yawRate, targetYaw, Math.min(1, dt * 6));
-  rig.rollTarget = pc.math.lerp(rig.rollTarget, targetRoll, Math.min(1, dt * 6));
-
-  // Apply rotations — pitch around local X, yaw around local Y
-  rig.root.rotateLocal(rig.pitchRate * dt * pc.math.RAD_TO_DEG, 0, 0);
-  rig.root.rotateLocal(0, rig.yawRate * dt * pc.math.RAD_TO_DEG, 0);
-
-  // Visual roll on mesh only (not the whole rig — we want movement to stay flat-ish)
-  const currentRoll = rig.body.getLocalEulerAngles().z;
-  const newRoll = pc.math.lerp(
-    currentRoll,
-    rig.rollTarget * pc.math.RAD_TO_DEG,
-    Math.min(1, dt * 5)
+  rig.yawDeg += targetYawDelta;
+  rig.pitchDeg = pc.math.clamp(
+    rig.pitchDeg + targetPitchDelta,
+    -PITCH_LIMIT_DEG,
+    PITCH_LIMIT_DEG
   );
-  rig.body.setLocalEulerAngles(0, 0, newRoll);
 
-  // Forward velocity: ship always moves in its local +Z
+  // Apply absolute Euler angles. Roll LOCKED to 0.
+  // Note: PlayCanvas setEulerAngles applies ZYX order. We pass pitch (X),
+  // yaw (Y), roll=0 (Z). The resulting `forward` for (pitch=0, yaw=Y) rotates
+  // the world forward (-Z) by Y degrees around world-Y.
+  rig.root.setEulerAngles(rig.pitchDeg, rig.yawDeg, 0);
+
+  // Body mesh — also locked to zero roll. We no longer tilt it with input.
+  rig.body.setLocalEulerAngles(0, 0, 0);
+
+  // Forward velocity: ship always moves along its own forward vector at a
+  // constant speed. Avoids the sluggish lerp of the old code.
   const fwd = rig.root.forward;
-  const targetVel = new pc.Vec3(
+  rig.velocity.set(
     fwd.x * FORWARD_SPEED,
     fwd.y * FORWARD_SPEED,
     fwd.z * FORWARD_SPEED
   );
-
-  rig.velocity.lerp(rig.velocity, targetVel, Math.min(1, dt * ACCEL * 0.2));
 
   const pos = rig.root.getPosition();
   pos.x += rig.velocity.x * dt;

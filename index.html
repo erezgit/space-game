@@ -111,61 +111,69 @@
         pointer-events: auto;
       }
 
+      /* Static visible joystick — always on, bottom-left, respects safe-area */
       .joystick {
         position: absolute;
-        width: 130px;
-        height: 130px;
+        left: calc(max(env(safe-area-inset-left), 16px) + 20px);
+        bottom: calc(max(env(safe-area-inset-bottom), 16px) + 20px);
+        width: 140px;
+        height: 140px;
         border-radius: 50%;
-        border: 2px solid rgba(110, 231, 183, 0.6);
+        border: 2px solid rgba(110, 231, 183, 0.55);
         background: radial-gradient(
           circle,
-          rgba(110, 231, 183, 0.12),
-          rgba(110, 231, 183, 0.03)
+          rgba(110, 231, 183, 0.14),
+          rgba(110, 231, 183, 0.04)
         );
-        box-shadow: 0 0 24px rgba(110, 231, 183, 0.2);
+        box-shadow: 0 0 22px rgba(110, 231, 183, 0.22),
+          inset 0 0 12px rgba(110, 231, 183, 0.08);
         pointer-events: none;
-        opacity: 0;
-        transition: opacity 0.15s;
+        opacity: 0.75;
+        transition: opacity 0.12s, transform 0.12s;
       }
 
       .joystick.active {
         opacity: 1;
+        transform: scale(1.02);
       }
 
       .joystick-knob {
         position: absolute;
         left: 50%;
         top: 50%;
-        width: 56px;
-        height: 56px;
-        margin-left: -28px;
-        margin-top: -28px;
+        width: 62px;
+        height: 62px;
+        margin: 0;
         border-radius: 50%;
+        transform: translate(-50%, -50%);
         background: radial-gradient(
           circle,
-          rgba(110, 231, 183, 0.9),
+          rgba(110, 231, 183, 0.95),
           rgba(110, 231, 183, 0.4)
         );
-        box-shadow: 0 0 20px rgba(110, 231, 183, 0.8);
+        box-shadow: 0 0 22px rgba(110, 231, 183, 0.8),
+          inset 0 0 10px rgba(255, 255, 255, 0.25);
       }
 
       .fire-ring {
         position: absolute;
-        right: 40px;
-        bottom: 40px;
-        width: 90px;
-        height: 90px;
+        right: calc(max(env(safe-area-inset-right), 16px) + 28px);
+        bottom: calc(max(env(safe-area-inset-bottom), 16px) + 28px);
+        width: 94px;
+        height: 94px;
         border-radius: 50%;
-        border: 2px solid rgba(244, 114, 182, 0.5);
-        background: rgba(244, 114, 182, 0.08);
+        border: 2px solid rgba(244, 114, 182, 0.55);
+        background: rgba(244, 114, 182, 0.1);
         display: flex;
         align-items: center;
         justify-content: center;
-        color: rgba(244, 114, 182, 0.9);
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.15em;
+        color: rgba(244, 114, 182, 0.95);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.18em;
         pointer-events: none;
+        box-shadow: 0 0 22px rgba(244, 114, 182, 0.25),
+          inset 0 0 12px rgba(244, 114, 182, 0.1);
       }
 
       /* Death screen */
