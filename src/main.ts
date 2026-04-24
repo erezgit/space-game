@@ -79,9 +79,10 @@ const shipRig: ShipRig = createShip(app);
 app.root.addChild(shipRig.root);
 
 // Camera follows ship (chase cam). Ship forward = -Z, so camera sits at +Z behind,
-// offset up + slightly to the side so the hull silhouette is readable.
-const CAMERA_OFFSET_LOCAL = new pc.Vec3(0, 2.8, 9.0);
-const CAMERA_LOOK_OFFSET = new pc.Vec3(0, -0.2, -18);
+// above so the hull/wings silhouette reads well. Look point is low + forward so
+// the ship appears tilted from this vantage.
+const CAMERA_OFFSET_LOCAL = new pc.Vec3(0, 3.6, 8.5);
+const CAMERA_LOOK_OFFSET = new pc.Vec3(0, -2.5, -18);
 
 // Systems
 const particles = new ParticleSystem(app);
