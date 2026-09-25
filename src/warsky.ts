@@ -1,14 +1,16 @@
 import * as pc from "playcanvas";
 
-/** The horizon colour — the scene fog uses it too, so the city melts into the sky. */
-export const HAZE: [number, number, number] = [0.46, 0.22, 0.12];
+/** The horizon haze colour — the scene fog uses it too, so distant land melts into the sky. */
+export const HAZE: [number, number, number] = [0.66, 0.66, 0.66];
+/** Direction TO the sun (normalised in the shader). The key light shines along its negative. */
+export const SUN_DIR: [number, number, number] = [-0.45, 0.42, -0.79];
 
 /**
- * World War III sky over New York: a burning orange horizon, a low red sun
- * behind the smoke, and heavy drifting smoke clouds overhead.
+ * A late-afternoon sky over a city at war: deep blue overhead, a warm hazy
+ * horizon, a bright sun with a glow, drifting cumulus — and dark war smoke
+ * smudged low over the horizon where the city burns.
  *
- * An inverted sphere with a GLSL shader. It follows the camera every frame so
- * the player can never fly out of it.
+ * An inverted sphere, depth-tested, drawn in the skybox layer, following the camera.
  */
 export function createWarSky(app: pc.Application, camera: pc.Entity): pc.Entity {
   const vertexShader = /* glsl */ `
@@ -27,6 +29,7 @@ export function createWarSky(app: pc.Application, camera: pc.Entity): pc.Entity 
     varying vec3 vDir;
     uniform float uTime;
     uniform vec3 uHaze;
+    uniform vec3 uSun;
 
     float hash31(vec3 p) {
       p = fract(p * 0.1031);
@@ -53,36 +56,37 @@ export function createWarSky(app: pc.Application, camera: pc.Entity): pc.Entity 
     void main(void) {
       vec3 dir = normalize(vDir);
       float h = dir.y;
+      vec3 sun = normalize(uSun);
 
-      // Gradient: burning horizon → smoky brown → near-black overhead.
-      vec3 horizon = uHaze * 1.25;
-      vec3 mid = vec3(0.30, 0.13, 0.08);
-      vec3 top = vec3(0.07, 0.05, 0.05);
-      vec3 col = mix(horizon, mid, smoothstep(0.0, 0.22, h));
-      col = mix(col, top, smoothstep(0.18, 0.75, h));
-      // Below the horizon: the glow of the burning city.
-      col = mix(col, uHaze * 0.9, smoothstep(0.0, -0.25, h));
+      vec3 zenith = vec3(0.16, 0.34, 0.66);
+      vec3 mid = vec3(0.42, 0.58, 0.8);
+      vec3 col = mix(uHaze * 1.08, mid, smoothstep(0.0, 0.18, h));
+      col = mix(col, zenith, smoothstep(0.15, 0.7, h));
+      col = mix(col, uHaze * 0.95, smoothstep(0.0, -0.2, h)); // below the horizon
 
-      // A low, blood-red sun hidden in the smoke.
-      vec3 sunDir = normalize(vec3(-0.55, 0.12, -0.83));
-      float sd = max(dot(dir, sunDir), 0.0);
-      col += vec3(1.4, 0.45, 0.12) * pow(sd, 350.0) * 2.2;
-      col += vec3(1.0, 0.35, 0.1) * pow(sd, 12.0) * 0.45;
+      // Sun: disc, halo, and a warm cast over that side of the sky.
+      float sd = max(dot(dir, sun), 0.0);
+      col += vec3(1.6, 1.4, 1.1) * pow(sd, 900.0) * 3.0;
+      col += vec3(1.0, 0.8, 0.5) * pow(sd, 24.0) * 0.35;
+      col += vec3(0.5, 0.35, 0.2) * pow(sd, 4.0) * 0.18 * (1.0 - smoothstep(0.0, 0.6, h));
 
-      // Heavy smoke, drifting.
-      vec3 p = dir * 3.0 + vec3(uTime * 0.012, 0.0, uTime * 0.02);
-      float smoke = fbm(p);
-      smoke = smoothstep(0.42, 0.85, smoke) * smoothstep(-0.05, 0.25, h);
-      col = mix(col, vec3(0.09, 0.07, 0.07), smoke * 0.75);
-      // Fire light catching the underside of the smoke near the horizon.
-      col += vec3(0.5, 0.18, 0.05) * smoke * (1.0 - smoothstep(0.0, 0.3, h)) * 0.5;
+      // Cumulus, drifting, lit on the sun side.
+      vec3 cp = dir / max(h + 0.15, 0.05) * 0.9 + vec3(uTime * 0.01, 0.0, uTime * 0.006);
+      float cloud = smoothstep(0.52, 0.78, fbm(cp)) * smoothstep(0.02, 0.2, h);
+      vec3 cloudCol = mix(vec3(0.72, 0.74, 0.78), vec3(1.05, 1.0, 0.95), pow(sd, 3.0));
+      col = mix(col, cloudCol, cloud * 0.85);
+
+      // War smoke: dark, low, in columns over the horizon.
+      float band = 1.0 - smoothstep(0.0, 0.26, abs(h - 0.06));
+      float columns = smoothstep(0.55, 0.9, fbm(vec3(atan(dir.z, dir.x) * 5.0, h * 5.0 - uTime * 0.03, 3.0)));
+      col = mix(col, vec3(0.2, 0.18, 0.17), band * columns * 0.7);
 
       gl_FragColor = vec4(col, 1.0);
     }
   `;
 
   const material = new pc.ShaderMaterial({
-    uniqueName: "war-sky",
+    uniqueName: "war-sky-day",
     vertexGLSL: vertexShader,
     fragmentGLSL: fragmentShader,
     attributes: { aPosition: pc.SEMANTIC_POSITION },
@@ -94,14 +98,15 @@ export function createWarSky(app: pc.Application, camera: pc.Entity): pc.Entity 
   material.depthTest = true;
   material.setParameter("uTime", 0);
   material.setParameter("uHaze", HAZE);
+  material.setParameter("uSun", SUN_DIR);
   material.update();
 
   const sky = new pc.Entity("war-sky");
   sky.addComponent("render", {
     type: "sphere", material, castShadows: false, receiveShadows: false, layers: [pc.LAYERID_SKYBOX],
   });
-  // Radius 1300: beyond the fog's end (900), inside the camera's far clip (1400).
-  sky.setLocalScale(2600, 2600, 2600);
+  // Radius 4500: beyond the fog's end, inside the camera's far clip (5000).
+  sky.setLocalScale(9000, 9000, 9000);
   app.root.addChild(sky);
 
   const start = performance.now();

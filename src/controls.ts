@@ -5,6 +5,8 @@ export interface ControlInput {
   y: number;
   /** True while player is pressing fire */
   firing: boolean;
+  /** True once per press of the missile key / button. */
+  missile: boolean;
 }
 
 interface ActiveTouch {
@@ -30,6 +32,8 @@ interface ActiveTouch {
 export class TouchControls {
   private touches = new Map<number, ActiveTouch>();
   private keyState = { up: false, down: false, left: false, right: false, fire: false };
+  private missileRequested = false;
+  private missileBtn = document.getElementById("missile-btn") as HTMLElement | null;
 
   private joystickEl = document.getElementById("joystick") as HTMLElement;
   private joystickKnobEl = document.getElementById("joystick-knob") as HTMLElement;
@@ -54,6 +58,10 @@ export class TouchControls {
     this.bindTouch(this.zoneLeft, "left");
     this.bindTouch(this.zoneRight, "right");
     this.bindKeyboard();
+    if (this.missileBtn) {
+      this.missileBtn.addEventListener("touchstart", (e) => { e.preventDefault(); e.stopPropagation(); this.missileRequested = true; }, { passive: false });
+      this.missileBtn.addEventListener("mousedown", () => { this.missileRequested = true; });
+    }
   }
 
   private refreshJoystickBaseCenter(): void {
@@ -128,6 +136,11 @@ export class TouchControls {
         this.keyState.fire = true;
         e.preventDefault();
       }
+      // Missiles: LEFT Command (or M). Edge-triggered — one missile per press.
+      if ((e.code === "MetaLeft" || e.code === "KeyM") && !e.repeat) {
+        this.missileRequested = true;
+        e.preventDefault();
+      }
     });
     window.addEventListener("keyup", (e) => {
       if (e.code === "ArrowUp" || e.code === "KeyW") this.keyState.up = false;
@@ -135,6 +148,15 @@ export class TouchControls {
       if (e.code === "ArrowLeft" || e.code === "KeyA") this.keyState.left = false;
       if (e.code === "ArrowRight" || e.code === "KeyD") this.keyState.right = false;
       if (e.code === "Space") this.keyState.fire = false;
+      // macOS drops the keyup of any key released while Command is held, which
+      // would leave a turn or the gun stuck on. Releasing Command clears them;
+      // anything still held re-asserts itself on its next key-repeat.
+      if (e.code === "MetaLeft" || e.code === "MetaRight") {
+        this.keyState = { up: false, down: false, left: false, right: false, fire: false };
+      }
+    });
+    window.addEventListener("blur", () => {
+      this.keyState = { up: false, down: false, left: false, right: false, fire: false };
     });
   }
 
@@ -180,6 +202,8 @@ export class TouchControls {
     if (this.keyState.down) y = 1;
     if (this.keyState.fire) firing = true;
 
-    return { x, y, firing };
+    const missile = this.missileRequested;
+    this.missileRequested = false;
+    return { x, y, firing, missile };
   }
 }

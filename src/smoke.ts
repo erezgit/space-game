@@ -13,11 +13,11 @@ export class SmokeSystem {
   private active: Puff[] = [];
   private pool: pc.Entity[] = [];
 
-  constructor(app: pc.Application, max = 420) {
+  constructor(app: pc.Application, max = 420, color: [number, number, number] = [0.1, 0.09, 0.09], opacity = 0.55) {
     const m = new pc.StandardMaterial();
-    m.diffuse = new pc.Color(0.1, 0.09, 0.09);
-    m.emissive = new pc.Color(0.08, 0.05, 0.04);
-    m.opacity = 0.55;
+    m.diffuse = new pc.Color(...color);
+    m.emissive = new pc.Color(color[0] * 0.6, color[1] * 0.5, color[2] * 0.45);
+    m.opacity = opacity;
     m.blendType = pc.BLEND_NORMAL;
     m.depthWrite = false;
     m.update();

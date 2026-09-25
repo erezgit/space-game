@@ -271,6 +271,73 @@
         }
       }
 
+
+      /* ── Targeting: centre reticle, lock box on the target, status line */
+      .reticle {
+        position: absolute; left: 50%; top: 50%;
+        width: 150px; height: 150px; margin: -75px 0 0 -75px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 196, 64, 0.75);
+        box-shadow: 0 0 14px rgba(255, 196, 64, 0.35), inset 0 0 14px rgba(255, 196, 64, 0.15);
+        pointer-events: none;
+        transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+      }
+      .reticle::before, .reticle::after {
+        content: ""; position: absolute; background: rgba(255, 196, 64, 0.85);
+      }
+      .reticle::before { left: 50%; top: -10px; width: 2px; height: 170px; margin-left: -1px;
+        -webkit-mask: linear-gradient(#000 0 14px, transparent 14px 156px, #000 156px); mask: linear-gradient(#000 0 14px, transparent 14px 156px, #000 156px); }
+      .reticle::after { top: 50%; left: -10px; height: 2px; width: 170px; margin-top: -1px;
+        -webkit-mask: linear-gradient(90deg, #000 0 14px, transparent 14px 156px, #000 156px); mask: linear-gradient(90deg, #000 0 14px, transparent 14px 156px, #000 156px); }
+      .reticle .dot { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(255, 196, 64, 0.9); }
+      .reticle .progress { position: absolute; inset: -8px; border-radius: 50%;
+        background: conic-gradient(rgba(255, 196, 64, 0.9) calc(var(--p, 0) * 1turn), transparent 0);
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); }
+      .reticle.locked { border-color: rgba(74, 222, 128, 0.95); box-shadow: 0 0 24px rgba(74, 222, 128, 0.7), inset 0 0 18px rgba(74, 222, 128, 0.3); transform: scale(0.92); }
+      .reticle.locked::before, .reticle.locked::after, .reticle.locked .dot { background: rgba(74, 222, 128, 0.95); }
+      .reticle.locked .progress { background: rgba(74, 222, 128, 0.95); }
+      .lock-box {
+        position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; pointer-events: none;
+        border: 2px solid rgba(255, 196, 64, 0.9); transform: rotate(45deg); transition: width 0.1s, height 0.1s;
+      }
+      .lock-box.locked { border-color: rgba(74, 222, 128, 1); box-shadow: 0 0 16px rgba(74, 222, 128, 0.8); animation: lockPulse 0.25s infinite alternate; }
+      @keyframes lockPulse { from { transform: rotate(45deg) scale(1); } to { transform: rotate(45deg) scale(0.8); } }
+      .lock-label {
+        position: absolute; left: 50%; top: calc(50% + 92px); transform: translateX(-50%);
+        font-size: 13px; font-weight: 800; letter-spacing: 0.3em; color: rgba(255, 196, 64, 0.95);
+        text-shadow: 0 0 10px rgba(0, 0, 0, 0.6); pointer-events: none; white-space: nowrap;
+      }
+      .lock-label.locked { color: rgba(74, 222, 128, 1); }
+      .flight-data {
+        position: absolute; left: 50%; bottom: calc(max(env(safe-area-inset-bottom), 12px) + 8px); transform: translateX(-50%);
+        display: flex; gap: 22px; font-size: 12px; font-weight: 700; letter-spacing: 0.12em;
+        color: rgba(255, 255, 255, 0.9); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7); pointer-events: none;
+        font-variant-numeric: tabular-nums;
+      }
+      .flight-data b { color: #ffd86b; }
+      .warning {
+        position: absolute; left: 50%; top: 22%; transform: translateX(-50%);
+        font-size: 18px; font-weight: 900; letter-spacing: 0.25em; color: #ff4d4d;
+        text-shadow: 0 0 14px rgba(255, 0, 0, 0.6); pointer-events: none; animation: blink 0.5s infinite alternate;
+      }
+      @keyframes blink { from { opacity: 1; } to { opacity: 0.35; } }
+      .kill-feed { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); pointer-events: none; text-align: center; }
+      .kill-feed div {
+        font-size: 20px; font-weight: 900; letter-spacing: 0.15em; color: #ffd86b;
+        text-shadow: 0 0 16px rgba(255, 150, 0, 0.8); animation: killPop 1.6s ease-out forwards;
+      }
+      @keyframes killPop { 0% { opacity: 0; transform: scale(1.6); } 12% { opacity: 1; transform: scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-30px); } }
+      .missile-btn {
+        position: absolute;
+        right: calc(max(env(safe-area-inset-right), 16px) + 136px);
+        bottom: calc(max(env(safe-area-inset-bottom), 16px) + 40px);
+        width: 72px; height: 72px; border-radius: 50%;
+        border: 2px solid rgba(74, 222, 128, 0.6); background: rgba(74, 222, 128, 0.12);
+        color: rgba(74, 222, 128, 0.95); font-size: 11px; font-weight: 800; letter-spacing: 0.14em;
+        display: flex; align-items: center; justify-content: center; z-index: 5; user-select: none; cursor: pointer;
+      }
+      .missile-btn.cooling { opacity: 0.35; }
+
       .hidden {
         display: none !important;
       }
@@ -299,6 +366,13 @@
         <div class="joystick-knob" id="joystick-knob"></div>
       </div>
       <div class="fire-ring">FIRE</div>
+      <div class="reticle" id="reticle"><div class="progress"></div><div class="dot"></div></div>
+      <div class="lock-box hidden" id="lock-box"></div>
+      <div class="lock-label" id="lock-label"></div>
+      <div class="warning hidden" id="warning"></div>
+      <div class="kill-feed" id="kill-feed"></div>
+      <div class="flight-data"><span>ALT <b id="alt">0</b></span><span>SPD <b id="spd">0</b></span><span>MSL <b id="msl">READY</b></span><span>KILLS <b id="kills">0</b></span></div>
+      <div class="missile-btn" id="missile-btn">MSL</div>
       <div class="damage-flash" id="damage-flash"></div>
       <div class="overlay hidden" id="death-screen">
         <h1>SHOT DOWN</h1>
