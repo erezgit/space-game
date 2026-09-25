@@ -6,27 +6,41 @@ export interface Projectile {
   life: number;
 }
 
-const MAX_PROJECTILES = 64;
-const PROJECTILE_SPEED = 85;
-const PROJECTILE_LIFE = 2.4;
+export interface ProjectileOptions {
+  /** Emissive colour of the tracer (linear, may exceed 1 for bloom). */
+  color?: [number, number, number];
+  speed?: number;
+  life?: number;
+  max?: number;
+  /** Tracer thickness and length. */
+  width?: number;
+  length?: number;
+}
 
 export class ProjectileSystem {
   public readonly active: Projectile[] = [];
   private pool: pc.Entity[] = [];
   private material: pc.StandardMaterial;
+  private speed: number;
+  private life: number;
 
-  constructor(app: pc.Application) {
+  constructor(app: pc.Application, opts: ProjectileOptions = {}) {
+    const c = opts.color ?? [0.25, 1.1, 0.8];
+    this.speed = opts.speed ?? 85;
+    this.life = opts.life ?? 2.4;
+    const max = opts.max ?? 64;
     this.material = new pc.StandardMaterial();
     this.material.diffuse = new pc.Color(0, 0, 0);
-    this.material.emissive = new pc.Color(0.25, 1.1, 0.8);
+    this.material.emissive = new pc.Color(c[0], c[1], c[2]);
     this.material.emissiveIntensity = 3;
     this.material.useMetalness = false;
     this.material.update();
 
-    for (let i = 0; i < MAX_PROJECTILES; i++) {
+    for (let i = 0; i < max; i++) {
       const e = new pc.Entity(`proj-${i}`);
       e.addComponent("render", { type: "capsule", material: this.material });
-      e.setLocalScale(0.14, 0.7, 0.14);
+      const w = opts.width ?? 0.14;
+      e.setLocalScale(w, opts.length ?? 0.7, w);
       e.enabled = false;
       app.root.addChild(e);
       this.pool.push(e);
@@ -55,10 +69,10 @@ export class ProjectileSystem {
 
     entity.enabled = true;
 
-    const vel = dirN.clone().mulScalar(PROJECTILE_SPEED);
+    const vel = dirN.clone().mulScalar(this.speed);
     vel.add(inheritedVel);
 
-    this.active.push({ entity, velocity: vel, life: PROJECTILE_LIFE });
+    this.active.push({ entity, velocity: vel, life: this.life });
   }
 
   update(dt: number): void {
