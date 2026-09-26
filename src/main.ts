@@ -288,7 +288,7 @@ app.on("update", (dt: number) => {
   spdEl.textContent = `${Math.round(SPEED * 18)}`;
   mslEl.textContent = missileCooldown > 0 ? "RELOAD" : targeting.locked ? "LOCK" : "READY";
   missileBtn.classList.toggle("cooling", missileCooldown > 0);
-  sound.setEngine(SPEED);
+  sound.setEngine(SPEED, alive);
 
   // Chase camera.
   tmpQuat.copy(shipRig.root.getRotation());

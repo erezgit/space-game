@@ -17,6 +17,15 @@ export class Sound {
     window.addEventListener("keydown", start, { once: true });
     window.addEventListener("touchstart", start, { once: true });
     window.addEventListener("mousedown", start, { once: true });
+    // A background tab must be SILENT: browsers keep Web Audio running when the tab
+    // is hidden, and the engine rumble became a hum from Erez's speakers (26 Sept).
+    document.addEventListener("visibilitychange", () => {
+      if (!this.ctx) return;
+      if (document.hidden) void this.ctx.suspend();
+      else void this.ctx.resume();
+    });
+    window.addEventListener("blur", () => { if (this.ctx) void this.ctx.suspend(); });
+    window.addEventListener("focus", () => { if (this.ctx && !document.hidden) void this.ctx.resume(); });
   }
 
   private init(): void {
@@ -32,7 +41,7 @@ export class Sound {
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
 
-    // A low jet rumble, always on.
+    // A low jet rumble — silent until setEngine() says the jet is flying.
     const osc = this.ctx.createOscillator();
     osc.type = "sawtooth";
     osc.frequency.value = 55;
@@ -40,7 +49,7 @@ export class Sound {
     lp.type = "lowpass";
     lp.frequency.value = 180;
     const gain = this.ctx.createGain();
-    gain.gain.value = 0.05;
+    gain.gain.value = 0;
     osc.connect(lp).connect(gain).connect(this.master);
     osc.start();
     this.engine = { osc, gain };
@@ -87,8 +96,10 @@ export class Sound {
     this.lockGain.gain.value = on ? 0.06 : 0;
   }
 
-  setEngine(speed: number): void {
+  /** The engine is only heard while the jet is flying. */
+  setEngine(speed: number, flying: boolean): void {
     if (!this.engine) return;
     this.engine.osc.frequency.value = 45 + speed * 0.6;
+    this.engine.gain.gain.value = flying ? 0.03 : 0;
   }
 }
